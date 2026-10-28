@@ -7,7 +7,7 @@ import urllib.parse
 import requests
 
 from ..commons import exceptions
-from ..commons.http_client import HttpClient
+from ..commons.http_client import HttpClient, cwa_session
 from ..constants import WEATHER_API_VERSION
 from ..utils import geo, formatting
 from . import forecaster, historian, observation, forecast, stationhistory, one_call
@@ -160,12 +160,13 @@ class WeatherManager:
         root_uri = ROOT_WEATHER_API if str(ROOT_WEATHER_API).startswith(('http://', 'https://')) else f"https://{ROOT_WEATHER_API}"
         url = f"{root_uri}/{OBSERVATION_URI}?{params}"
         try:
-            resp = requests.get(
-                url,
-                timeout=self.http_client.config['connection']['timeout_secs'],
-                verify=self.http_client.config['connection']['verify_ssl_certs'],
-                proxies=self.http_client.config.get('proxies') or None,
-            )
+            with cwa_session() as session:
+                resp = session.get(
+                    url,
+                    timeout=self.http_client.config['connection']['timeout_secs'],
+                    verify=self.http_client.config['connection']['verify_ssl_certs'],
+                    proxies=self.http_client.config.get('proxies') or None,
+                )
             if resp.status_code >= 400:
                 raise exceptions.APIRequestError(f"observation request failed: {resp.status_code} {resp.text[:200]}")
             json_data = resp.json()

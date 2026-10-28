@@ -2,13 +2,36 @@
 # -*- coding: utf-8 -*-
 
 import json
+import ssl
 import time
 import requests
+from requests.adapters import HTTPAdapter
 
 from . import exceptions
 from .enums import ImageTypeEnum
 
 WEATHER_JSON_READ_TIMEOUT_SECS = 12
+
+
+class CwaTLSAdapter(HTTPAdapter):
+    """Verify the chain and hostname as usual, without VERIFY_X509_STRICT.
+
+    opendata.cwa.gov.tw serves a certificate without the Subject Key Identifier
+    extension, which Python 3.13+ rejects by default ("Missing Subject Key Identifier").
+    """
+
+    def init_poolmanager(self, *args, **kwargs):
+        ctx = ssl.create_default_context(cafile=requests.certs.where())
+        ctx.verify_flags &= ~getattr(ssl, "VERIFY_X509_STRICT", 0)
+        kwargs["ssl_context"] = ctx
+        return super().init_poolmanager(*args, **kwargs)
+
+
+def cwa_session():
+    """requests.Session that uses CwaTLSAdapter for opendata.cwa.gov.tw only."""
+    session = requests.Session()
+    session.mount("https://opendata.cwa.gov.tw/", CwaTLSAdapter())
+    return session
 
 
 class HttpRequestBuilder:
@@ -136,11 +159,12 @@ class HttpClient:
         url, params, headers, proxies = builder.build()
         for attempt in range(2):
             try:
-                resp = requests.get(
-                    url, params=params, headers=headers, proxies=proxies,
-                    timeout=(self.config['connection']['timeout_secs'], WEATHER_JSON_READ_TIMEOUT_SECS),
-                    verify=self.config['connection']['verify_ssl_certs'],
-                )
+                with cwa_session() as session:
+                    resp = session.get(
+                        url, params=params, headers=headers, proxies=proxies,
+                        timeout=(self.config['connection']['timeout_secs'], WEATHER_JSON_READ_TIMEOUT_SECS),
+                        verify=self.config['connection']['verify_ssl_certs'],
+                    )
             except requests.exceptions.SSLError:
                 raise exceptions.InvalidSSLCertificateError('CWA TLS verification failed') from None
             except (requests.exceptions.Timeout, requests.exceptions.ConnectionError):

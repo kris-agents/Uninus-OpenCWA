@@ -7,6 +7,7 @@ from typing import Any
 
 import requests
 from .core.commons.exceptions import APIRequestError, ParseAPIResponseError, UnauthorizedError
+from .core.commons.http_client import cwa_session
 
 from homeassistant.components.weather import (
     ATTR_CONDITION_CLEAR_NIGHT,
@@ -156,7 +157,7 @@ class WeatherUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             if v and "host:port" not in v and "user:pass" not in v
         } or None
         url = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0003-001"
-        session = requests.Session()
+        session = cwa_session()
         session.trust_env = False
         resp = session.get(
             url,

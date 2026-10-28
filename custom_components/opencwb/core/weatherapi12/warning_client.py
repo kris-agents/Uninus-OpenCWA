@@ -6,6 +6,7 @@ from __future__ import annotations
 import requests
 
 from ..commons import exceptions
+from ..commons.http_client import cwa_session
 from . import warning_parser
 
 ROOT_REST_DATASTORE = "https://opendata.cwa.gov.tw/api/v1/rest/datastore"
@@ -38,7 +39,7 @@ class WarningClient:
             for key, value in proxies_cfg.items()
             if value and "host:port" not in value and "user:pass" not in value
         } or None
-        session = requests.Session()
+        session = cwa_session()
         session.trust_env = False
         try:
             resp = session.get(url, params=params, timeout=timeout, verify=verify, proxies=proxies)
